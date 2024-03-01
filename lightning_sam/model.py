@@ -2,6 +2,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from segment_anything import sam_model_registry
 from segment_anything import SamPredictor
+import numpy as np
 
 
 class Model(nn.Module):
@@ -23,14 +24,20 @@ class Model(nn.Module):
             for param in self.model.mask_decoder.parameters():
                 param.requires_grad = False
 
-    def forward(self, images, bboxes):
+    def forward(self, images, bboxes=None, centers=None):
+        if not bboxes and not centers:
+            raise ValueError("Either bboxes or centers must be provided")
         _, _, H, W = images.shape
         image_embeddings = self.model.image_encoder(images)
         pred_masks = []
         ious = []
-        for embedding, bbox in zip(image_embeddings, bboxes):
+        if not centers:
+            centers = [None] * len(bboxes)
+        if not bboxes:
+            bboxes = [None] * len(centers)
+        for embedding, bbox, center in zip(image_embeddings, bboxes, centers):
             sparse_embeddings, dense_embeddings = self.model.prompt_encoder(
-                points=None,
+                points=center,
                 boxes=bbox,
                 masks=None,
             )
